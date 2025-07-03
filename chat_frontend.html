@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ИИ-Советник — Чат</title>
+    <style>
+        body {
+            background: #181c24;
+            color: #f3f3f3;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 600px;
+            margin: 40px auto 0 auto;
+            background: #23283a;
+            border-radius: 12px;
+            box-shadow: 0 4px 24px #000a;
+            overflow: hidden;
+        }
+        .chat-header {
+            background: #1a1e29;
+            padding: 18px 24px;
+            font-size: 1.3em;
+            font-weight: bold;
+            letter-spacing: 1px;
+            border-bottom: 1px solid #222;
+        }
+        .chat-messages {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+        .msg {
+            max-width: 80%;
+            padding: 14px 18px;
+            border-radius: 16px;
+            font-size: 1.05em;
+            line-height: 1.5;
+            word-break: break-word;
+            box-shadow: 0 2px 8px #0002;
+        }
+        .msg.user {
+            align-self: flex-end;
+            background: linear-gradient(90deg, #3a8dde 60%, #5e9cff 100%);
+            color: #fff;
+        }
+        .msg.bot {
+            align-self: flex-start;
+            background: #23283a;
+            color: #f3f3f3;
+            border: 1px solid #2d3347;
+        }
+        .response-section {
+            margin: 8px 0;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: #1a1e29;
+            border-left: 3px solid #3a8dde;
+        }
+        .response-section h4 {
+            margin: 0 0 4px 0;
+            color: #3a8dde;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .response-section p {
+            margin: 0;
+            font-size: 0.95em;
+            line-height: 1.4;
+        }
+        .chat-input {
+            display: flex;
+            gap: 10px;
+            padding: 18px 24px;
+            background: #1a1e29;
+            border-top: 1px solid #222;
+        }
+        .chat-input input {
+            flex: 1;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: none;
+            font-size: 1em;
+            background: #23283a;
+            color: #f3f3f3;
+        }
+        .chat-input button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            background: #3a8dde;
+            color: #fff;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .chat-input button:disabled {
+            background: #555a;
+            cursor: not-allowed;
+        }
+        .loading {
+            color: #aaa;
+            font-size: 0.95em;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">ИИ-Советник — Чат</div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <form class="chat-input" id="chatForm" autocomplete="off">
+            <input type="text" id="userInput" placeholder="Введите ваш вопрос..." required autofocus />
+            <button type="submit" id="sendBtn">Отправить</button>
+        </form>
+    </div>
+    <script>
+        const chatMessages = document.getElementById('chatMessages');
+        const chatForm = document.getElementById('chatForm');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        let loadingMsg = null;
+
+        function addMessage(text, sender, responseData = null) {
+            const msg = document.createElement('div');
+            msg.className = 'msg ' + sender;
+            
+            if (sender === 'bot' && responseData) {
+                // Форматируем ответ в новом формате
+                let html = '';
+                
+                if (responseData.clarify) {
+                    html += `<div class="response-section">
+                        <h4>Уточняющие вопросы</h4>
+                        <p>${responseData.clarify}</p>
+                    </div>`;
+                }
+                
+                if (responseData.solution) {
+                    html += `<div class="response-section">
+                        <h4>Решение</h4>
+                        <p>${responseData.solution}</p>
+                    </div>`;
+                }
+                
+                if (responseData.routeTo) {
+                    html += `<div class="response-section">
+                        <h4>Перенаправление</h4>
+                        <p>${responseData.routeTo}</p>
+                    </div>`;
+                }
+                
+                if (!html) {
+                    html = text; // Fallback к старому формату
+                }
+                
+                msg.innerHTML = html;
+            } else {
+                msg.textContent = text;
+            }
+            
+            chatMessages.appendChild(msg);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function setLoading(isLoading) {
+            if (isLoading) {
+                loadingMsg = document.createElement('div');
+                loadingMsg.className = 'loading';
+                loadingMsg.textContent = 'ИИ-советник печатает...';
+                chatMessages.appendChild(loadingMsg);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            } else if (loadingMsg) {
+                chatMessages.removeChild(loadingMsg);
+                loadingMsg = null;
+            }
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const question = userInput.value.trim();
+            if (!question) return;
+            addMessage(question, 'user');
+            userInput.value = '';
+            sendBtn.disabled = true;
+            setLoading(true);
+            try {
+                const response = await fetch('/ask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: question })
+                });
+                setLoading(false);
+                sendBtn.disabled = false;
+                if (!response.ok) {
+                    addMessage('Ошибка: ' + response.statusText, 'bot');
+                    return;
+                }
+                const data = await response.json();
+                addMessage('Ответ получен', 'bot', data);
+            } catch (err) {
+                setLoading(false);
+                sendBtn.disabled = false;
+                addMessage('Ошибка соединения с сервером.', 'bot');
+            }
+        });
+    </script>
+</body>
+</html> 
